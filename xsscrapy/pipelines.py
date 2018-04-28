@@ -1,4 +1,4 @@
-#coding = utf-8
+#coding=utf-8
 # Define your item pipelines here
 #
 # Don't forget to add your pipeline to the ITEM_PIPELINES setting
@@ -15,12 +15,12 @@ import itertools
 #from urlparse import urlparse
 import urlparse
 import socket
-import MySQLdb
-from MySQLdb import escape_string
+#import MySQLdb
+#from MySQLdb import escape_string
 
 import sys
-sys.path.append('dbs/')
-from config import global_config
+#sys.path.append('../dbs')
+#from config import global_config
 
 import hashlib
 import sqlite3
@@ -31,14 +31,7 @@ class XSSCharFinder(object):
         self.url_param_xss_items = []
 
     def get_filename(self, url):
-        #filename = 'xsscrapy-vulns.txt'
-        #up = urlparse(url).netloc.replace('www.', '').split(':')[0]
-        #if up:
-        #    #filename = up + '.txt'
-        #    filename = 'result/test/'+up+'/'+up+'.txt'
-        #filename = urlparse(url).netloc.split(':')[0]
         filename = urlparse.urlparse(url).netloc
-
         return filename
 
     def open_spider(self, spider):
@@ -74,7 +67,8 @@ class XSSCharFinder(object):
             raise DropItem('Found repeatable url at %s' % (orig_url))
         # Quick sqli check based on DSSS
         dbms, regex = self.sqli_check(body, meta['orig_body'])
-        if dbms:
+        #meta['orig_body']
+        if dbms:#
             msg = 'Possible SQL injection error! Suspected DBMS: %s, regex used: %s' % (dbms, regex)
             item = self.make_item(meta, resp_url, msg, 'N/A', None)
             self.write_to_file(item, spider)
@@ -87,7 +81,6 @@ class XSSCharFinder(object):
             item = None
         # Now that we've checked for SQLi, we can lowercase the body
         body = body.lower()
-
         # XSS detection starts here
         re_matches = sorted([(m.start(), m.group(), m.end()) for m in re.finditer(full_match, body)])
 
@@ -161,7 +154,7 @@ class XSSCharFinder(object):
             post_para = ""
         
         url_hash_insert = "INSERT INTO url_hash (domain , pure_url, hash ,query, post_para) VALUES ('%s','%s','%s','%s','%s');"%(repeat_domain,repeat_url ,repeat_url_hash,repeat_query, post_para)
-        cx = sqlite3.connect("dbs/xsscrapy_repeat.db")
+        cx = sqlite3.connect("xxxcrapy_repeat.db")
         cu = cx.cursor()
         #if success, insert once
         try:
@@ -285,7 +278,6 @@ class XSSCharFinder(object):
         ############### THIS NEEDS TO BE THE REFLECTED PAYLOAD
         line = injection[6]
         item_found = None
-
         # get_reflected_chars() always returns a string
         if len(unfiltered_chars) > 0:
             chars_payloads = self.get_breakout_chars(injection, resp_url)
@@ -822,6 +814,7 @@ class XSSCharFinder(object):
             item['line'] = line
         else:
             item['line'] = '\n'.join(line)
+            
         item['xss_payload'] = meta['payload']
         item['unfiltered'] = unfiltered
         item['xss_param'] = meta['xss_param']
@@ -834,6 +827,7 @@ class XSSCharFinder(object):
             item['POST_to'] = meta['POST_to']
 
         # Just make sure one of the options has been set
+        
         if item['unfiltered']:
             return item
 
@@ -1034,36 +1028,36 @@ class XSSCharFinder(object):
         return event_attributes
 
     def write_to_file(self, item, spider):
-        orig_url = escape_string(item['orig_url'])
-        resp_url = escape_string(item['resp_url'])
+        orig_url = item['orig_url']
+        resp_url = item['resp_url']
         if 'POST_to' in item:
-            post_url = escape_string(item['POST_to'])
+            post_url = item['POST_to']
         else:
             post_url = ""
-        unfiltered_str = escape_string(item['unfiltered'])
-        vuln_payload = escape_string(item['xss_payload'])
-        vuln_type = escape_string(item['xss_place'])
-        vuln_para = escape_string(item['xss_param'])
+        unfiltered_str = item['unfiltered']
+        vuln_payload = item['xss_payload']
+        vuln_type = item['xss_place']
+        vuln_para = item['xss_param']
         
         if 'sugg_payloads' in item:
-            suggest_payload = escape_string(item['sugg_payloads'])
+            suggest_payload = item['sugg_payloads']
         else:
             suggest_payload = ""
 
-        vuln_line = escape_string(item['line'])
+        vuln_line = item['line']
         if 'error' in item:
-            vuln_error = escape_string(item['error'])
+            vuln_error = item['error']
         else:
             vuln_error = ""
 
-        cx = sqlite3.connect("dbs/xxxcrapy.db")
+        cx = sqlite3.connect("xxxcrapy.db")
         cu = cx.cursor()
         try:
-            xxxcrapy_insert = "CREATE TABLE IF NOT EXISTS  xxxcrapy (id INTEGER primary key AUTOINCREMENT, host_name VARCHAR(255), orig_url VARCHAR(1000), resp_url VARCHAR(1000),post_url  VARCHAR(1000) , unfiltered_str VARCHAR(255), vuln_payload VARCHAR(1000), vuln_type varchar(255), vuln_para varchar(255), suggest_payload varchar(500), vuln_line varchar(1000), vuln_error  varchar(1000));"
-            cu.execute(xxxcrapy_insert)
-            
-            xxxcrapy_sql = "insert into xxxcrapy values('%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s');"%(self.filename, orig_url, resp_url, post_url, unfiltered_str, vuln_payload, vuln_type, vuln_para, suggest_payload, vuln_line, vuln_error)
-            cu.execute(xxxcrapy_sql)
+            xxxcrapy_create = "CREATE TABLE IF NOT EXISTS  xxxcrapy (host_name VARCHAR(255), orig_url VARCHAR(1000), resp_url VARCHAR(1000),post_url  VARCHAR(1000) , unfiltered_str VARCHAR(255), vuln_payload VARCHAR(1000), vuln_type varchar(255), vuln_para varchar(255), suggest_payload varchar(500), vuln_line varchar(1000), vuln_error  varchar(1000));"
+            cu.execute(xxxcrapy_create)
+            xxxcrapy_insert = "insert into xxxcrapy values(? ,? ,? ,? ,? ,? ,? ,? ,? ,? ,?);"
+            para = (self.filename, orig_url, resp_url, post_url, unfiltered_str, vuln_payload, vuln_type, vuln_para, suggest_payload, vuln_line, vuln_error)
+            cu.execute(xxxcrapy_insert, para)
             cx.commit()
             cu.close()
             cx.close()
@@ -1126,7 +1120,7 @@ class XSSCharFinder(object):
         #print "============="
         #print orig_url
         #print "=========="
-        cx = sqlite3.connect("dbs/xsscrapy_repeat.db")
+        cx = sqlite3.connect("xxxcrapy_repeat.db")
         cu = cx.cursor()
         try:
             cu.execute("CREATE TABLE url_hash (id INTEGER primary key AUTOINCREMENT,domain VARCHAR(255),pure_url VARCHAR(255),hash VARCHAR(255),query VARCHAR(255) , post_para VARCHAR(255));")
@@ -1173,11 +1167,10 @@ class XSSCharFinder(object):
                     cu.execute('select query from url_hash where pure_url = "%s" and query !="" '%(repeat_pure_url))
                     query = cu.fetchone()
                     try:#容错
-                        cu.execute(xsscrapy_sql)
-                        cx.commit()
                         cu.close()
                         cx.close()
                     except Exception,e:
+                        print e
                         pass
                     if query:
                         stored_para = json.loads(query[0])

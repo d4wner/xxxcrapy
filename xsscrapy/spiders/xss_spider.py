@@ -62,6 +62,13 @@ class XSSspider(CrawlSpider):
         if self.basic_auth == 'true':
             self.http_user = self.login_user
             self.http_pass = self.login_pass
+        
+        #PhantomJS env needed
+        self.phantomjs = ''
+        if kwargs.get('phantomjs') == "True":
+            self.phantomjs = True
+            self.log('[+]PhantomJS browser been enabled...')
+
 
     def parse_start_url(self, response):
         ''' Creates the XSS tester requests for the start URL as well as the request for robots.txt '''
@@ -81,13 +88,36 @@ class XSSspider(CrawlSpider):
     def start_requests(self):
         ''' If user and pw args are given, pass the first response to the login handler
             otherwise pass it to the normal callback function '''
-        if self.login_user and self.login_pass:
+
+        """ if self.login_user and self.login_pass:
             if self.basic_auth == 'true':
                 yield Request(url=self.start_urls[0]) # Take out the callback arg so crawler falls back to the rules' callback
             else:
                 yield Request(url=self.start_urls[0], callback=self.login)
         else:
-            yield Request(url=self.start_urls[0]) # Take out the callback arg so crawler falls back to the rules' callback
+            yield Request(url=self.start_urls[0]) # Take out the callback arg so crawler falls back to the rules' callback """
+
+        #code for phantomjs
+        if self.login_user and self.login_pass:
+            if self.basic_auth == 'true':
+                request = Request(url=self.start_urls[0])
+                #enable PhantomJS
+                if self.phantomjs:
+                    request.meta['PhantomJS'] = True
+                yield request# Take out the callback arg so crawler falls back to the rules' callback
+            else:
+                request =  Request(url=self.start_urls[0], callback=self.login)
+                #enable PhantomJS
+                if self.phantomjs:
+                    request.meta['PhantomJS'] = True
+                yield request
+        else:
+            request = Request(url=self.start_urls[0])
+            #enable PhantomJS
+            if self.phantomjs:
+                request.meta['PhantomJS'] = True
+            yield  request# Take out the callback arg so crawler falls back to the rules' callback
+
 
     def login(self, response):
         ''' Fill out the login form and return the request'''

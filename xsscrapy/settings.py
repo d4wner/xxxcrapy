@@ -38,3 +38,12 @@ ITEM_PIPELINES = {'xsscrapy.pipelines.XSSCharFinder':100}
 
 CONCURRENT_REQUESTS = 30
 REACTOR_THREADPOOL_MAXSIZE = 5
+
+DOWNLOADER_MIDDLEWARES = {
+    'xsscrapy.JSMiddleware.PhantomJSMiddleware': 100
+}
+
+#预判打印错误日志时可用。
+#LOG_ENABLED = True
+#LOG_FILE = "xxxcrapy_error.log"
+#LOG_LEVEL = "ERROR"
