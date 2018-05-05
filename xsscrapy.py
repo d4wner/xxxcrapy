@@ -23,7 +23,7 @@ def get_args():
     parser.add_argument('--basic', help="Use HTTP Basic Auth to login", action="store_true")
     parser.add_argument('-k', '--cookie',help="Cookie key; --cookie SessionID=afgh3193e9103bca9318031bcdf")
     parser.add_argument('-pj', '--phantomjs', default=False,  help="if enable phantomjs, need to set phantomjs in env; -pj True")
-    parser.add_argument('-i', '--input_file', default=False,  help="input the url file you'll scan; -t url.txt")
+    parser.add_argument('-i', '--input_file', default=False,  help="input the url file you'll scan; -i url.txt")
     args = parser.parse_args()
     return args
 
