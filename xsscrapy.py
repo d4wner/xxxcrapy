@@ -23,6 +23,7 @@ def get_args():
     parser.add_argument('--basic', help="Use HTTP Basic Auth to login", action="store_true")
     parser.add_argument('-k', '--cookie',help="Cookie key; --cookie SessionID=afgh3193e9103bca9318031bcdf")
     parser.add_argument('-pj', '--phantomjs', default=False,  help="if enable phantomjs, need to set phantomjs in env; -pj True")
+    parser.add_argument('-i', '--input_file', default=False,  help="input the url file you'll scan; -t url.txt")
     args = parser.parse_args()
     return args
 
@@ -48,7 +49,8 @@ def main():
         cookie_key = args.cookie.split('=',1)[0] if args.cookie else None
         cookie_value = ''.join(args.cookie.split('=',1)[1:]) if args.cookie else None
         execute(['scrapy', 'crawl', 'xsscrapy',
-                 '-a', 'url=%s' % args.url, 
+                 '-a', 'url=%s' % args.url,
+                 '-a', 'input_file=%s' % args.input_file, 
                  '-a', 'user=%s' % args.login, 
                  '-a', 'pw=%s' % args.password, 
                  '-a', 'basic=%s' % args.basic,

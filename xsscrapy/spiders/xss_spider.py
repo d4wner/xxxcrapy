@@ -22,11 +22,15 @@ import requests
 import string
 import random
 
+from scrapy_redis.spiders import RedisCrawlSpider
+import redis
+import os
 #from IPython import embed
 
 __author__ = 'Dan McInerney danhmcinerney@gmail.com'
 
 class XSSspider(CrawlSpider):
+#class XSSspider(RedisCrawlSpider, CrawlSpider):
     name = 'xsscrapy'
     # Scrape 404 pages too
     handle_httpstatus_list = [x for x in xrange(0,600)]
@@ -36,10 +40,48 @@ class XSSspider(CrawlSpider):
     def __init__(self, *args, **kwargs):
         # run using: scrapy crawl xss_spider -a url='http://example.com'
         super(XSSspider, self).__init__(*args, **kwargs)
-        self.start_urls = [kwargs.get('url')]
-        hostname = urlparse(self.start_urls[0]).hostname
-        # With subdomains
-        self.allowed_domains = [hostname] # adding [] around the value seems to allow it to crawl subdomain of value
+        #self.start_urls = [kwargs.get('url')]
+        self.allowed_domains = []
+        self.init_url = ''
+        self.init_urls = []
+        if kwargs.get('input_file') != 'False':
+            
+            """ redis_key = 'xsscrapy:start_urls'
+            pool =redis.ConnectionPool(host='192.168.14.129', port=6379, db=0)
+            r = redis.Redis(connection_pool=pool)
+
+            input_file = open(kwargs.get('input_file'), 'r')
+            for line in open(kwargs.get('input_file'), 'r'):
+                r.lpush('xsscrapy.start_urls', line.strip())
+            #while True:
+            #self.start_urls.append('')
+            # process queue as FIFO, change `blpop`to `brpop` to process as LIFO
+            source, self.init_url = r.blpop(["xsscrapy:start_urls"]) """
+            self.input_file = kwargs.get('input_file')
+            """ try:
+                print u"Processing: %s" % self.init_url
+            except KeyError:
+                print u"Error procesing:%s" % self.init_url """
+
+            #hostname = urlparse(self.init_url).hostname
+            # With subdomains
+            """  self.allowed_domains = []
+            #self.allowed_domains = [hostname] # adding [] around the value seems to allow it to crawl subdomain of value
+            #self.allowed_domains = ['dawner.info','localhost']
+            start_urls_len = r.llen('xsscrapy:start_urls')
+            for x in xrange(start_urls_len):
+                x_url = r.lindex("xsscrapy:start_urls",x)
+                x_hostname = urlparse(x_url).hostname
+                self.allowed_domains.append(x_hostname)
+            self.allowed_domains =  list(set(self.allowed_domains)) """
+            for line in open(self.input_file, 'r').readlines():
+                domain = urlparse(line.strip()).hostname
+                self.allowed_domains.append(domain)
+                self.init_urls.append(line.strip())
+        else:
+            self.init_url = [kwargs.get('url')][0]
+            hostname = urlparse(self.init_url).hostname
+            self.allowed_domains = [hostname]
         self.delim = '1zqj'
         # semi colon goes on end because sometimes it cuts stuff off like
         # gruyere or the second cookie delim
@@ -70,13 +112,18 @@ class XSSspider(CrawlSpider):
             self.log('[+]PhantomJS browser been enabled...')
 
 
+
     def parse_start_url(self, response):
         ''' Creates the XSS tester requests for the start URL as well as the request for robots.txt '''
         u = urlparse(response.url)
         self.base_url = u.scheme+'://'+u.netloc
         robots_url = self.base_url+'/robots.txt'
         robot_req = Request(robots_url, callback=self.robot_parser)
-        fourohfour_url = self.start_urls[0]+'/requestXaX404'
+        #fourohfour_url = self.init_url+'/requestXaX404'
+        fourohfour_url = self.base_url+'/requestXaX404'
+        """ print 1111111111
+        print self.base_url
+        print fourohfour_url """
         fourohfour_req = Request(fourohfour_url, callback=self.parse_resp)
 
         reqs = self.parse_resp(response)
@@ -91,32 +138,58 @@ class XSSspider(CrawlSpider):
 
         """ if self.login_user and self.login_pass:
             if self.basic_auth == 'true':
-                yield Request(url=self.start_urls[0]) # Take out the callback arg so crawler falls back to the rules' callback
+                yield Request(url=self.init_url) # Take out the callback arg so crawler falls back to the rules' callback
             else:
-                yield Request(url=self.start_urls[0], callback=self.login)
+                yield Request(url=self.init_url, callback=self.login)
         else:
-            yield Request(url=self.start_urls[0]) # Take out the callback arg so crawler falls back to the rules' callback """
+            yield Request(url=self.init_url) # Take out the callback arg so crawler falls back to the rules' callback """
 
-        #code for phantomjs
+
         if self.login_user and self.login_pass:
             if self.basic_auth == 'true':
-                request = Request(url=self.start_urls[0])
-                #enable PhantomJS
-                if self.phantomjs:
-                    request.meta['PhantomJS'] = True
-                yield request# Take out the callback arg so crawler falls back to the rules' callback
+                #if exist input_file
+                if self.init_url:
+                    request = Request(url=self.init_url)
+                    #code for phantomjs
+                    if self.phantomjs:
+                        request.meta['PhantomJS'] = True
+                    yield request# Take out the callback arg so crawler falls back to the rules' callback
+                elif self.init_urls and not self.init_url:
+                    for init_url in self.init_urls:
+                        request = Request(url=init_url)
+                        #code for phantomjs
+                        if self.phantomjs:
+                            request.meta['PhantomJS'] = True
+                        yield request# For multi urls
             else:
-                request =  Request(url=self.start_urls[0], callback=self.login)
-                #enable PhantomJS
+                if self.init_url:
+                    request =  Request(url=self.init_url, callback=self.login)
+                    #code for phantomjs
+                    if self.phantomjs:
+                        request.meta['PhantomJS'] = True
+                    yield request
+                elif self.init_urls and not self.init_url:
+                    for init_url in self.init_urls:
+                        request =  Request(url=init_url, callback=self.login)
+                        #code for phantomjs
+                        if self.phantomjs:
+                            request.meta['PhantomJS'] = True
+                        yield request# For multi urls
+        else:
+            if self.init_url: 
+                request = Request(url=self.init_url)
+                #code for phantomjs
                 if self.phantomjs:
                     request.meta['PhantomJS'] = True
-                yield request
-        else:
-            request = Request(url=self.start_urls[0])
-            #enable PhantomJS
-            if self.phantomjs:
-                request.meta['PhantomJS'] = True
-            yield  request# Take out the callback arg so crawler falls back to the rules' callback
+                yield  request# Take out the callback arg so crawler falls back to the rules' callback
+            elif self.init_urls and not self.init_url:
+                for init_url in self.init_urls:
+                    request =  Request(url=init_url)
+                    #code for phantomjs
+                    if self.phantomjs:
+                        request.meta['PhantomJS'] = True
+                    yield request# For multi urls
+            
 
 
     def login(self, response):
@@ -132,16 +205,16 @@ class XSSspider(CrawlSpider):
 
         except Exception:
             self.log('Login failed') # Make this more specific eventually
-            return Request(url=self.start_urls[0], dont_filter=True) # Continue crawling
+            return Request(url=self.init_url, dont_filter=True) # Continue crawling
 
     def confirm_login(self, response):
         ''' Check that the username showed up in the response page '''
         if self.login_user.lower() in response.body.lower():
             self.log('Successfully logged in (or, at least, the username showed up in the response html)')
-            return Request(url=self.start_urls[0], dont_filter=True)
+            return Request(url=self.init_url, dont_filter=True)
         else:
             self.log('FAILED to log in! (or at least cannot find the username on the post-login page which may be OK)')
-            return Request(url=self.start_urls[0], dont_filter=True)
+            return Request(url=self.init_url, dont_filter=True)
     ###########################################################################
 
     def robot_parser(self, response):

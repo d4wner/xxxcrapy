@@ -37,6 +37,10 @@ class XSSCharFinder(object):
     def open_spider(self, spider):
         self.filename = self.get_filename(spider.url)
 
+    def close_spider(self, spider):
+        print '[+]Close spider %s.......'%(spider.url)
+        #self.filename = self.get_filename(spider.url)
+
     def process_item(self, item, spider):
         response = item['resp']
         meta = response.meta
@@ -1163,7 +1167,7 @@ class XSSCharFinder(object):
             cu.execute('select * from url_hash where pure_url = "%s"'%(repeat_pure_url))# and resp_para
             url_hash_item = cu.fetchone()
             if url_hash_item:
-                if post_para or orig_para:
+                if post_para:# or orig_para:
                     cu.execute('select query from url_hash where pure_url = "%s" and query !="" '%(repeat_pure_url))
                     query = cu.fetchone()
                     try:#容错
