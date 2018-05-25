@@ -78,11 +78,19 @@ class XSSCharFinder(object):
             self.write_to_file(item, spider)
             item = None
         #login form check...
-        form_url = self.form_check(body,resp_url)
+        """ form_url = self.form_check(body,resp_url)
         if form_url:
             item = self.make_item(meta, resp_url, 'login_form', None, None)
             self.write_to_file(item, spider)
+            item = None """
+        #info_leak_detect
+        info_leak_url = self.info_leak_match(body,resp_url)
+        if info_leak_url:
+            item = self.make_item(meta, resp_url, 'info_leak', 'info_leak', None)
+            self.write_to_file(item, spider)
+
             item = None
+        
         # Now that we've checked for SQLi, we can lowercase the body
         body = body.lower()
         # XSS detection starts here
@@ -1032,8 +1040,15 @@ class XSSCharFinder(object):
         return event_attributes
 
     def write_to_file(self, item, spider):
-        orig_url = item['orig_url']
-        resp_url = item['resp_url']
+        cx = sqlite3.connect("xxxcrapy.db")
+        cu = cx.cursor()
+        try:
+            orig_url = item['orig_url']
+            resp_url = item['resp_url']
+        except Exception, e:
+            raise DropItem('Write_to_file url error: %s' % (str(e)))
+        #recode from filename
+        host_name = urlparse.urlparse(orig_url).hostname
         if 'POST_to' in item:
             post_url = item['POST_to']
         else:
@@ -1049,20 +1064,36 @@ class XSSCharFinder(object):
             suggest_payload = ""
 
         vuln_line = item['line']
+        if vuln_line == "info_leak":
+            info_leak_sql = "select count(*) from xxxcrapy where vuln_line = 'info_leak' and resp_url = ?"
+            para = [resp_url]
+            print info_leak_sql
+            print para
+            cu.execute(info_leak_sql, para)
+            cx.commit()
+            vuln_line_query = cu.fetchone()[0]
+            if vuln_line_query:
+                #info_leak存在重复url，提前结束
+                cu.close()
+                cx.close()
+                return
+
+
         if 'error' in item:
             vuln_error = item['error']
         else:
             vuln_error = ""
 
-        cx = sqlite3.connect("xxxcrapy.db")
-        cu = cx.cursor()
+
         try:
             xxxcrapy_create = "CREATE TABLE IF NOT EXISTS  xxxcrapy (host_name VARCHAR(255), orig_url VARCHAR(1000), resp_url VARCHAR(1000),post_url  VARCHAR(1000) , unfiltered_str VARCHAR(255), vuln_payload VARCHAR(1000), vuln_type varchar(255), vuln_para varchar(255), suggest_payload varchar(500), vuln_line varchar(1000), vuln_error  varchar(1000));"
             cu.execute(xxxcrapy_create)
             xxxcrapy_insert = "insert into xxxcrapy values(? ,? ,? ,? ,? ,? ,? ,? ,? ,? ,?);"
-            para = (self.filename, orig_url, resp_url, post_url, unfiltered_str, vuln_payload, vuln_type, vuln_para, suggest_payload, vuln_line, vuln_error)
+            para = (host_name, orig_url, resp_url, post_url, unfiltered_str, vuln_payload, vuln_type, vuln_para, suggest_payload, vuln_line, vuln_error)
             cu.execute(xxxcrapy_insert, para)
             cx.commit()
+
+            #结束
             cu.close()
             cx.close()
         except Exception,e:
@@ -1070,12 +1101,33 @@ class XSSCharFinder(object):
             pass
         
        
-    def form_check(self, body, resp_url):
+    """ def form_check(self, body, resp_url):
         body = body.lower()
         regx = 'type[\s]*=[\s]*"password'
         if re.search(regx, body):
             return resp_url
+        return None """
+    def info_leak_match(self, body, resp_url):
+        #body = body.lower()
+        root_domain = self.root_domain_get(urlparse.urlparse(resp_url).hostname)
+        #regx = 'type[\s]*=[\s]*"password'
+        regx = r'(index|directory) of|type([\s\S]*?)=([\s\S]*?)(("|\')(password|file)("|\'))|allow-access-from|([\s\S]*?)\.(svn|git|hg|ds_store)([\s\S]*?)|管理系统|后台管理|ssh-rsa|((25[0-5]|2[0-4]\d|((1\d{2})|([1-9]?\d)))\.){3}(25[0-5]|2[0-4]\d|((1\d{2})|([1-9]?\d)))|'+root_domain+':'
+        if re.search(regx, body, re.IGNORECASE):
+            return resp_url
         return None
+
+    #这里暂时采用的本地库，实在tmd没办法了，接口经常挂
+    def root_domain_get(self, host):
+        res = host
+        domainS = [".edu.cn",".net.cn",".org.cn",".co.jp",".gov.cn",".co.uk","ac.cn",".com.cn",".com",".cn",".gov",".net",".edu",".tv",".info",".ac",".ag",".am",".at",".be",".biz",".bz",".cc",".de",".es",".eu",".fm",".gs",".hk",".in",".info",".io",".it",".jp",".la",".md",".ms",".name",".nl",".nu",".org",".pl",".ru",".sc",".se",".sg",".sh",".tc",".tk",".tv",".tw",".us",".co",".uk",".vc",".vg",".ws",".il",".li",".nz"]
+        for l in domainS:
+            regex = re.compile(r'[0-9a-zA-Z_-]+'+l+'$')
+            m = regex.findall(host)
+            if len(m) > 0:
+                return m[0]
+            else:
+                pass
+        return res
 
 
     def urlsimilar(self,url):

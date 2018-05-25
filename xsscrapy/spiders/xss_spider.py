@@ -125,7 +125,6 @@ class XSSspider(CrawlSpider):
         print self.base_url
         print fourohfour_url """
         fourohfour_req = Request(fourohfour_url, callback=self.parse_resp)
-
         reqs = self.parse_resp(response)
         reqs.append(robot_req)
         reqs.append(fourohfour_req)
