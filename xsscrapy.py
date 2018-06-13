@@ -23,7 +23,8 @@ def get_args():
     parser.add_argument('--basic', help="Use HTTP Basic Auth to login", action="store_true")
     parser.add_argument('-k', '--cookie',help="Cookie key; --cookie SessionID=afgh3193e9103bca9318031bcdf")
     parser.add_argument('-pj', '--phantomjs', default=False,  help="if enable phantomjs, need to set phantomjs in env; -pj True")
-    parser.add_argument('-i', '--input_file', default=False,  help="input the url file you'll scan; -i url.txt")
+    parser.add_argument('-i', '--input_file', default='',  help="input the url file you'll scan; -i url.txt")
+    #parser.add_argument('-lt', '--limit_time', default='',  help="limit the time each url to spider, eg for run no more than 2 hours: --limit_time=2")
     args = parser.parse_args()
     return args
 
@@ -34,7 +35,7 @@ __  ____  ____  _____ _ __ __ _ _ __  _   _
  >  <  >  <  >  < (__| | | (_| | |_) | |_| |
 /_/\_\/_/\_\/_/\_\___|_|  \__,_| .__/ \__, |
                                | |     __/ |
-                               |_|    |___/  V1.1
+                               |_|    |___/  V1.2
 
 [+]This project based on xsscrapy.
     '''
@@ -50,7 +51,8 @@ def main():
         cookie_value = ''.join(args.cookie.split('=',1)[1:]) if args.cookie else None
         execute(['scrapy', 'crawl', 'xsscrapy',
                  '-a', 'url=%s' % args.url,
-                 '-a', 'input_file=%s' % args.input_file, 
+                 '-a', 'input_file=%s' % args.input_file,
+                 #'-a', 'limit_time=%s' % args.limit_time,  
                  '-a', 'user=%s' % args.login, 
                  '-a', 'pw=%s' % args.password, 
                  '-a', 'basic=%s' % args.basic,

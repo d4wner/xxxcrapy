@@ -18,6 +18,7 @@ class vuln(Item):
     line = Field()
     POST_to = Field()
 
+
     def __str__(self):
         ''' Prevent the item from being printed to output during debugging '''
         return ''

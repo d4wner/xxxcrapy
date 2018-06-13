@@ -41,6 +41,6 @@ class PhantomJSMiddleware(object):
                 content = driver.page_source.encode('utf-8')
             except Exception, e:
                 print e
-                content = driver.page_source.encode("GBK", "ignore");
+                content = driver.page_source.encode("GBK", "ignore")
             driver.quit()  
             return HtmlResponse(request.url, encoding='utf-8', body=content, request=request)

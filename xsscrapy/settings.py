@@ -64,4 +64,8 @@ REDIS_PORT = 6379
 DUPEFILTER_CLASS = "scrapy_redis.dupefilter.RFPDupeFilter"
  """
 
+'''pipline 传参确实传不进去，这里默认设置多少s后，spider任务开始停止。
+多任务无法暂时单个计算超时，xxxcrapy实现了多url添加，但如果需要单独运行，需要禁用这里的CLOSESPIDER_TIMEOUT。
+想要实现多url添加，并且实现任务量控制，以及多url的时间控制，需要借用hellsrc。'''
 
+CLOSESPIDER_TIMEOUT = 10

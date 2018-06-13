@@ -26,8 +26,30 @@ import hashlib
 import sqlite3
 import json
 
+from scrapy.xlib.pydispatch import dispatcher
+from scrapy import signals
+#from crawler.stats import stats
+from datetime import datetime
+
+from scrapy.exceptions import CloseSpider
+
+from scrapy.utils.project import get_project_settings
+settings = get_project_settings()
+
+@classmethod
+def from_crawler(cls, crawler):
+    return cls(crawler.stats)
+
 class XSSCharFinder(object):
-    def __init__(self):
+
+    @classmethod
+    def from_crawler(cls, crawler):
+        stats=crawler.stats
+        return cls(crawler.stats)
+
+
+    def __init__(self, stats=None):
+        self.stats = stats
         self.url_param_xss_items = []
 
     def get_filename(self, url):
@@ -38,12 +60,35 @@ class XSSCharFinder(object):
         self.filename = self.get_filename(spider.url)
 
     def close_spider(self, spider):
+        #dispatcher.connect(self.handle_spider_closed, signals.spider_closed)
         print '[+]Close spider %s.......'%(spider.url)
         #self.filename = self.get_filename(spider.url)
 
+    def handle_spider_run_time(self, spider):
+        now_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        now_date = datetime.strptime(now_time, '%Y-%m-%d %H:%M:%S')
+
+        start_time = self.stats.get_stats(spider)['start_time'].strftime('%Y-%m-%d %H:%M:%S')
+        start_date = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
+
+        print '[+]Well, the spider for [%s] has worked for %s s.....: '% (spider.url , str(((now_date - start_date).total_seconds() - 8 * 60 *60)))  #//60 #//60
+        #return (now_date - start_date).total_seconds() - 8 * 60 *60
+
+
+
     def process_item(self, item, spider):
+        #dispatcher.connect(self.handle_spider_closed, signals.spider_closed)
+        #只有传入单独url时，或者单url启动模式时，才能采用这个模式
         response = item['resp']
         meta = response.meta
+
+        self.handle_spider_run_time(spider)
+        """ try:
+            limit_time = settings.get('LIMIT_TIME')
+            if run_time > limit_time:
+                raise  CloseSpider('Time to close it.......')
+        except Exception, e:
+            print e """
 
         payload = meta['payload']
         delim = meta['delim']

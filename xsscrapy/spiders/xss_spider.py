@@ -44,8 +44,8 @@ class XSSspider(CrawlSpider):
         self.allowed_domains = []
         self.init_url = ''
         self.init_urls = []
-        if kwargs.get('input_file') != 'False':
-            
+        #self.limit_time = ''
+        if kwargs.get('input_file'):
             """ redis_key = 'xsscrapy:start_urls'
             pool =redis.ConnectionPool(host='192.168.14.129', port=6379, db=0)
             r = redis.Redis(connection_pool=pool)
@@ -124,7 +124,7 @@ class XSSspider(CrawlSpider):
         """ print 1111111111
         print self.base_url
         print fourohfour_url """
-        fourohfour_req = Request(fourohfour_url, callback=self.parse_resp)
+        fourohfour_req = Request(fourohfour_url, callback=self.parse_resp , dont_filter=True)
         reqs = self.parse_resp(response)
         reqs.append(robot_req)
         reqs.append(fourohfour_req)
