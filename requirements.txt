@@ -11,3 +11,4 @@ pyopenssl
 cryptography
 queuelib
 selenium
+MySQLdb

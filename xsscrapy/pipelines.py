@@ -35,6 +35,8 @@ from scrapy.exceptions import CloseSpider
 
 from scrapy.utils.project import get_project_settings
 settings = get_project_settings()
+import MySQLdb
+from MySQLdb import escape_string
 
 @classmethod
 def from_crawler(cls, crawler):
@@ -1108,36 +1110,46 @@ class XSSCharFinder(object):
         else:
             suggest_payload = ""
 
-        vuln_line = item['line']
-        if vuln_line == "info_leak":
-            info_leak_sql = "select count(*) from xxxcrapy where vuln_line = 'info_leak' and resp_url = ?"
-            para = [resp_url]
-            print info_leak_sql
-            print para
-            cu.execute(info_leak_sql, para)
-            cx.commit()
-            vuln_line_query = cu.fetchone()[0]
-            if vuln_line_query:
-                #info_leak存在重复url，提前结束
-                cu.close()
-                cx.close()
-                return
-
-
         if 'error' in item:
             vuln_error = item['error']
         else:
             vuln_error = ""
 
+        vuln_line = item['line']
 
         try:
-            xxxcrapy_create = "CREATE TABLE IF NOT EXISTS  xxxcrapy (host_name VARCHAR(255), orig_url VARCHAR(1000), resp_url VARCHAR(1000),post_url  VARCHAR(1000) , unfiltered_str VARCHAR(255), vuln_payload VARCHAR(1000), vuln_type varchar(255), vuln_para varchar(255), suggest_payload varchar(500), vuln_line varchar(1000), vuln_error  varchar(1000));"
-            cu.execute(xxxcrapy_create)
-            xxxcrapy_insert = "insert into xxxcrapy values(? ,? ,? ,? ,? ,? ,? ,? ,? ,? ,?);"
-            para = (host_name, orig_url, resp_url, post_url, unfiltered_str, vuln_payload, vuln_type, vuln_para, suggest_payload, vuln_line, vuln_error)
-            cu.execute(xxxcrapy_insert, para)
-            cx.commit()
+            if not settings.get('MYSQLDB_ENABLE'):
+                if vuln_line == "info_leak":
+                    info_leak_sql = "select count(*) from xxxcrapy where vuln_line = 'info_leak' and resp_url = %s "
+                    para = [resp_url]
+                    print info_leak_sql
+                    print para
+                    cu.execute(info_leak_sql, para)
+                    cx.commit()
+                    vuln_line_query = cu.fetchone()[0]
+                    if vuln_line_query:
+                        #info_leak存在重复url，提前结束
+                        cu.close()
+                        cx.close()
+                        return
 
+                    xxxcrapy_create = "CREATE TABLE IF NOT EXISTS  xxxcrapy (host_name VARCHAR(255), orig_url VARCHAR(1000), resp_url VARCHAR(1000),post_url  VARCHAR(1000) , unfiltered_str VARCHAR(255), vuln_payload VARCHAR(1000), vuln_type varchar(255), vuln_para varchar(255), suggest_payload varchar(500), vuln_line varchar(1000), vuln_error  varchar(1000));"
+                    cu.execute(xxxcrapy_create)
+                    xxxcrapy_insert = "insert into xxxcrapy values(? ,? ,? ,? ,? ,? ,? ,? ,? ,? ,?);"
+                    para = (host_name, orig_url, resp_url, post_url, unfiltered_str, vuln_payload, vuln_type, vuln_para, suggest_payload, vuln_line, vuln_error)
+                    cu.execute(xxxcrapy_insert, para)
+                    cx.commit()
+            else:
+                xxxcrapy_create_sql = "CREATE TABLE IF NOT EXISTS  xxxcrapy (host_name VARCHAR(255), orig_url VARCHAR(1000), resp_url VARCHAR(1000),post_url  VARCHAR(1000) , unfiltered_str VARCHAR(255), vuln_payload VARCHAR(1000), vuln_type varchar(255), vuln_para varchar(255), suggest_payload varchar(500), vuln_line varchar(1000), vuln_error  varchar(1000));"
+                self.sql_manage(xxxcrapy_create_sql)
+                if vuln_line == "info_leak":
+                    info_leak_sql = "select count(*) from xxxcrapy where vuln_line = 'info_leak' and resp_url = '%s'" % escape_string(resp_url)
+                    info_leak_sql_result = self.sql_manage(info_leak_sql)
+                    if info_leak_sql_result[0]:
+                        return
+                xxxcrapy_insert_sql = "insert into xxxcrapy values('%s' ,'%s' ,'%s' ,'%s' ,'%s' ,'%s' ,'%s' ,'%s' ,'%s' ,'%s' ,'%s');" % (host_name, escape_string(orig_url), escape_string(resp_url), escape_string(post_url), escape_string(unfiltered_str), escape_string(vuln_payload), vuln_type, vuln_para, escape_string(suggest_payload), escape_string(vuln_line), escape_string(vuln_error) )
+                self.sql_manage(xxxcrapy_insert_sql)
+            
             #结束
             cu.close()
             cx.close()
@@ -1289,6 +1301,34 @@ class XSSCharFinder(object):
         else:
             return False
 
-
+    def sql_manage(self, sql):
+        db_config = settings.get('DB_CONFIG')
+        try:
+            conn= MySQLdb.connect(
+            host=db_config['host'],
+            port = db_config['port'],
+            user= db_config['user'],
+            passwd = db_config['passwd'],
+            db = db_config['db'],
+            charset = 'utf8'
+            )
+        except socket.timeout, e:
+            print "[x]Sql_manage get port_info timeout error"+str(e)
+        except Exception,e:
+            print "[x]Sql_manage connect error:"+str(e)
+            return False
+        #print sql
+        try:
+            cur = conn.cursor()
+            cur.execute(sql)
+        except Exception,e:
+            print '[x]Sql execute error:'+str(e)
+            print sql
+            return False
+        result = cur.fetchone()
+        cur.close()
+        conn.commit()
+        conn.close()
+        return result
 
 

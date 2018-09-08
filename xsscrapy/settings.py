@@ -69,3 +69,7 @@ DUPEFILTER_CLASS = "scrapy_redis.dupefilter.RFPDupeFilter"
 想要实现多url添加，并且实现任务量控制，以及多url的时间控制，需要借用hellsrc。'''
 
 CLOSESPIDER_TIMEOUT = 10
+
+MYSQLDB_ENABLE = True #False
+
+DB_CONFIG = {'user':'root','passwd':'yang4me','host':'192.168.14.129','port':3306,'db':'xxxcrapy'}
