@@ -1096,6 +1096,10 @@ class XSSCharFinder(object):
             raise DropItem('Write_to_file url error: %s' % (str(e)))
         #recode from filename
         host_name = urlparse.urlparse(orig_url).hostname
+        
+        #add root_domain
+        root_domain = self.root_domain_get(host_name)
+
         if 'POST_to' in item:
             post_url = item['POST_to']
         else:
@@ -1133,21 +1137,21 @@ class XSSCharFinder(object):
                         cx.close()
                         return
 
-                    xxxcrapy_create = "CREATE TABLE IF NOT EXISTS  xxxcrapy (host_name VARCHAR(255), orig_url VARCHAR(1000), resp_url VARCHAR(1000),post_url  VARCHAR(1000) , unfiltered_str VARCHAR(255), vuln_payload VARCHAR(1000), vuln_type varchar(255), vuln_para varchar(255), suggest_payload varchar(500), vuln_line varchar(1000), vuln_error  varchar(1000));"
+                    xxxcrapy_create = "CREATE TABLE IF NOT EXISTS  xxxcrapy (root_domain VARCHAR(255), host_name VARCHAR(255), orig_url VARCHAR(1000), resp_url VARCHAR(1000),post_url  VARCHAR(1000) , unfiltered_str VARCHAR(255), vuln_payload VARCHAR(1000), vuln_type varchar(255), vuln_para varchar(255), suggest_payload varchar(500), vuln_line varchar(1000), vuln_error  varchar(1000));"
                     cu.execute(xxxcrapy_create)
-                    xxxcrapy_insert = "insert into xxxcrapy values(? ,? ,? ,? ,? ,? ,? ,? ,? ,? ,?);"
-                    para = (host_name, orig_url, resp_url, post_url, unfiltered_str, vuln_payload, vuln_type, vuln_para, suggest_payload, vuln_line, vuln_error)
+                    xxxcrapy_insert = "insert into xxxcrapy values(?, ? ,? ,? ,? ,? ,? ,? ,? ,? ,? ,?);"
+                    para = (root_domain, host_name, orig_url, resp_url, post_url, unfiltered_str, vuln_payload, vuln_type, vuln_para, suggest_payload, vuln_line, vuln_error)
                     cu.execute(xxxcrapy_insert, para)
                     cx.commit()
             else:
-                xxxcrapy_create_sql = "CREATE TABLE IF NOT EXISTS  xxxcrapy (host_name VARCHAR(255), orig_url VARCHAR(1000), resp_url VARCHAR(1000),post_url  VARCHAR(1000) , unfiltered_str VARCHAR(255), vuln_payload VARCHAR(1000), vuln_type varchar(255), vuln_para varchar(255), suggest_payload varchar(500), vuln_line varchar(1000), vuln_error  varchar(1000));"
+                xxxcrapy_create_sql = "CREATE TABLE IF NOT EXISTS  xxxcrapy (root_domain VARCHAR(255), host_name VARCHAR(255), orig_url VARCHAR(1000), resp_url VARCHAR(1000),post_url  VARCHAR(1000) , unfiltered_str VARCHAR(255), vuln_payload VARCHAR(1000), vuln_type varchar(255), vuln_para varchar(255), suggest_payload varchar(500), vuln_line varchar(1000), vuln_error  varchar(1000));"
                 self.sql_manage(xxxcrapy_create_sql)
                 if vuln_line == "info_leak":
                     info_leak_sql = "select count(*) from xxxcrapy where vuln_line = 'info_leak' and resp_url = '%s'" % escape_string(resp_url)
                     info_leak_sql_result = self.sql_manage(info_leak_sql)
                     if info_leak_sql_result[0]:
                         return
-                xxxcrapy_insert_sql = "insert into xxxcrapy values('%s' ,'%s' ,'%s' ,'%s' ,'%s' ,'%s' ,'%s' ,'%s' ,'%s' ,'%s' ,'%s');" % (host_name, escape_string(orig_url), escape_string(resp_url), escape_string(post_url), escape_string(unfiltered_str), escape_string(vuln_payload), vuln_type, vuln_para, escape_string(suggest_payload), escape_string(vuln_line), escape_string(vuln_error) )
+                xxxcrapy_insert_sql = "insert into xxxcrapy values('%s' ,'%s' ,'%s' ,'%s' ,'%s' ,'%s' ,'%s' ,'%s' ,'%s' ,'%s' ,'%s' ,'%s');" % (root_domain, host_name, escape_string(orig_url), escape_string(resp_url), escape_string(post_url), escape_string(unfiltered_str), escape_string(vuln_payload), vuln_type, vuln_para, escape_string(suggest_payload), escape_string(vuln_line), escape_string(vuln_error) )
                 self.sql_manage(xxxcrapy_insert_sql)
             
             #结束

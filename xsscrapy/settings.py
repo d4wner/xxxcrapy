@@ -58,8 +58,8 @@ DOWNLOADER_MIDDLEWARES = {
 """ SCHEDULER = "scrapy_redis.scheduler.Scheduler"
 SCHEDULER_PERSIST = True
 SCHEDULER_QUEUE_CLASS = 'scrapy_redis.queue.SpiderPriorityQueue'
-REDIS_URL = 'redis://192.168.14.129:6379'
-REDIS_HOST = '192.168.14.129'
+REDIS_URL = 'redis://127.0.0.1:6379'
+REDIS_HOST = '127.0.0.1'
 REDIS_PORT = 6379
 DUPEFILTER_CLASS = "scrapy_redis.dupefilter.RFPDupeFilter"
  """
@@ -72,4 +72,4 @@ CLOSESPIDER_TIMEOUT = 10
 
 MYSQLDB_ENABLE = True #False
 
-DB_CONFIG = {'user':'root','passwd':'yang4me','host':'192.168.14.129','port':3306,'db':'xxxcrapy'}
+DB_CONFIG = {'user':'root','passwd':'yang4me','host':'127.0.0.1','port':3306,'db':'xxxcrapy'}

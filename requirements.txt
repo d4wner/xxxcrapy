@@ -12,3 +12,4 @@ cryptography
 queuelib
 selenium
 MySQLdb
+scrapy_redis

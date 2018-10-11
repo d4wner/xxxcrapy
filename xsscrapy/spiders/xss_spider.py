@@ -47,7 +47,7 @@ class XSSspider(CrawlSpider):
         #self.limit_time = ''
         if kwargs.get('input_file'):
             """ redis_key = 'xsscrapy:start_urls'
-            pool =redis.ConnectionPool(host='192.168.14.129', port=6379, db=0)
+            pool =redis.ConnectionPool(host='127.0.0.1', port=6379, db=0)
             r = redis.Redis(connection_pool=pool)
 
             input_file = open(kwargs.get('input_file'), 'r')
