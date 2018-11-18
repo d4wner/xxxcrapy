@@ -5,7 +5,7 @@
 # See: http://doc.scrapy.org/en/latest/topics/item-pipeline.html
 from scrapy.exceptions import DropItem
 import HTMLParser
-from xsscrapy.items import vuln#, inj_resp
+from xxxcrapy.items import vuln#, inj_resp
 import re
 import lxml.etree
 import lxml.html
@@ -37,6 +37,8 @@ from scrapy.utils.project import get_project_settings
 settings = get_project_settings()
 import MySQLdb
 from MySQLdb import escape_string
+
+from xxxcrapy.chrome_headless_xss import *
 
 @classmethod
 def from_crawler(cls, crawler):
@@ -83,7 +85,6 @@ class XSSCharFinder(object):
         #只有传入单独url时，或者单url启动模式时，才能采用这个模式
         response = item['resp']
         meta = response.meta
-
         self.handle_spider_run_time(spider)
         """ try:
             limit_time = settings.get('LIMIT_TIME')
@@ -91,7 +92,29 @@ class XSSCharFinder(object):
                 raise  CloseSpider('Time to close it.......')
         except Exception, e:
             print e """
-
+        if 'post_paras' in meta:
+            #repeat_value = self.repeat_check(meta['orig_url'],meta['POST_to'], '', meta['post_paras'])
+            #if repeat_value:
+            #    raise DropItem('Found repeatable url at %s' % (meta['orig_url']))
+            chrome_xss_check_result_for_post = self.chrome_xss_check(meta['POST_to'], meta['post_paras'])
+            """ if chrome_xss_check_result_for_post:
+                print chrome_xss_check_result_for_post """
+            
+            #just for post_paras...
+            #这里需要切换下item，不然item的条目冲突
+            if chrome_xss_check_result_for_post:
+                item = vuln()
+                item['orig_url'] = meta['orig_url']
+                item['resp_url'] = response.url
+                item['POST_to'] = meta['POST_to']
+                item['xss_place'] = 'chrome_xss_level_' + str(chrome_xss_check_result_for_post)
+                item['xss_param'] = meta['post_paras']
+                self.write_to_file(item, spider)
+            #pls view the code for chrome_headless_xss.py
+            return
+        else:
+            return
+            #self.chrome_xss_check(meta['orig_url'])
         payload = meta['payload']
         delim = meta['delim']
         param = meta['xss_param']
@@ -113,7 +136,7 @@ class XSSCharFinder(object):
             post_para = param
         else:
             post_para = ""
-        repeat_value = self.repeat_check(orig_url,resp_url,post_para)
+        repeat_value = self.repeat_check(orig_url,resp_url,post_para,'')
         if repeat_value:
             raise DropItem('Found repeatable url at %s' % (orig_url))
         # Quick sqli check based on DSSS
@@ -189,7 +212,7 @@ class XSSCharFinder(object):
                 self.write_to_file(item, spider)
                 return item
 
-        if post_para:
+        """ if post_para:
             repeat_url = meta['POST_to']
         else:
             repeat_url = orig_url
@@ -203,15 +226,18 @@ class XSSCharFinder(object):
         repeat_domain = urlparse.urlparse(repeat_pure_url).netloc
         if urlparse.urlparse(repeat_url).query != "":
             query= urlparse.urlparse(repeat_url).query
-            repeat_query_list = urlparse.parse_qs(query ,True).keys()
+            repeat_query_list = list(set(urlparse.parse_qs(query ,True).keys()))
             repeat_query = json.dumps(repeat_query_list)
         else:
             repeat_query = ""
-        if meta['xss_place'] == 'form':
-            post_para = meta['xss_param']
-        else:
-            post_para = ""
+        #if meta['xss_place'] == 'form':
+        #    post_para = meta['xss_param']
+        #else:
+        #    post_para = ""
         
+        #除了form_post_para统一为空
+        post_para = ""
+
         url_hash_insert = "INSERT INTO url_hash (domain , pure_url, hash ,query, post_para) VALUES ('%s','%s','%s','%s','%s');"%(repeat_domain,repeat_url ,repeat_url_hash,repeat_query, post_para)
         cx = sqlite3.connect("xxxcrapy_repeat.db")
         cu = cx.cursor()
@@ -222,9 +248,140 @@ class XSSCharFinder(object):
             print e
             #return False
         cx.commit()
-        #next line raise return
+        #next line raise return """
+
+
 
         raise DropItem('No XSS vulns in %s. type = %s, %s' % (resp_url, meta['xss_place'], meta['xss_param']))
+
+
+    def chrome_xss_check(self, orig_url, post_paras=''):
+        chrome_xss_payloads = [
+            "<svg/onload=[628628628].find(alert)>",
+            "<marquee loop=1 width=0 onfinish=javascript:a=confirm;a(628628628)>",
+            "<webscan>",
+            "'628628628",
+            '"628628628'
+        ]
+
+        #优先弹窗和dom，实在不行再返回引号标记
+        back_up_config = ''
+
+        get_query = urlparse.urlparse(orig_url).query
+        if get_query:
+            if '&' in get_query:
+                get_querys = get_query.split('&')
+            else:
+                get_querys = [get_query]
+
+            #双引号有个隐患，比较极端的情况，过滤了<>'，只留下了"
+            #for get paras '...
+
+            for get_item in get_querys:
+                for payload in chrome_xss_payloads:
+                    get_item_payload = get_item + payload
+                    payload_url = orig_url.replace(get_item, get_item_payload)
+                    chrome_headless_drive = ChromeHeadLess(url=payload_url,
+                                            ip= settings.get('CHROME_XSS_CHECK_IP') ,
+                                            port=settings.get('CHROME_XSS_CHECK_PORT') ,
+                                            cookie="",
+                                            post = post_paras,
+                                            auth="",
+                                            payload="'628628628",
+                                            check_message="628628628")
+                    try:
+                        result = int(chrome_headless_drive.run()[0]['level'])
+                        if result > 0:
+                            if result > 1:
+                                return result
+                            else:
+                                back_up_config = 1
+                    except Exception,e:
+                        print e
+
+            #for get paras "...
+            for get_item in get_querys:
+                for payload in chrome_xss_payloads:
+                    get_item_payload = get_item + payload
+                    payload_url = orig_url.replace(get_item, get_item_payload)
+                    chrome_headless_drive = ChromeHeadLess(url=payload_url,
+                                            ip= settings.get('CHROME_XSS_CHECK_IP') ,
+                                            port=settings.get('CHROME_XSS_CHECK_PORT') ,
+                                            cookie="",
+                                            post = post_paras,
+                                            auth="",
+                                            payload='"628628628',
+                                            check_message="628628628")
+                    try:
+                        result = int(chrome_headless_drive.run()[0]['level'])
+                        if result > 0:
+                            if result > 1:
+                                return result
+                            else:
+                                back_up_config = 1
+                    except Exception,e:
+                        print e
+
+        ####################################
+        if post_paras:
+            post_querys = post_paras.split('&')
+        else:
+            post_querys = [post_paras]
+
+            #for post paras '...
+
+            for post_item in post_querys:
+                for payload in chrome_xss_payloads:
+                    post_item_payload = post_item + payload
+                    payload_post_paras = post_paras.replace(post_item, post_item_payload)
+                    chrome_headless_drive = ChromeHeadLess(url=orig_url,
+                                            ip= settings.get('CHROME_XSS_CHECK_IP') ,
+                                            port=settings.get('CHROME_XSS_CHECK_PORT') ,
+                                            cookie="",
+                                            post = payload_post_paras,
+                                            auth="",
+                                            payload="'628628628",
+                                            check_message="628628628")
+                    try:
+                        #print chrome_headless_drive.run()[0]
+                        result = int(chrome_headless_drive.run()[0]['level'])
+                        if result > 0:
+                            if result > 1:
+                                return result
+                            else:
+                                back_up_config = 1
+                    except Exception,e:
+                        print e
+
+            #for post paras "...  
+
+            for post_item in post_querys:
+                for payload in chrome_xss_payloads:
+                    post_item_payload = post_item + payload
+                    payload_post_paras = post_paras.replace(post_item, post_item_payload)
+                    chrome_headless_drive = ChromeHeadLess(url=orig_url,
+                                            ip= settings.get('CHROME_XSS_CHECK_IP') ,
+                                            port=settings.get('CHROME_XSS_CHECK_PORT') ,
+                                            cookie="",
+                                            post = payload_post_paras,
+                                            auth="",
+                                            payload='"628628628',
+                                            check_message="628628628")
+                    try:
+                        result = int(chrome_headless_drive.run()[0]['level'])
+                        if result > 0:
+                            if result > 1:
+                                return result
+                            else:
+                                back_up_config = 1
+                    except Exception,e:
+                        print e
+
+        #最后检查back_up_config
+        if back_up_config:
+            return back_up_config
+
+
 
     def sqli_check(self, body, orig_body):
         ''' Do a quick lookup in the response body for SQL errors. Both w3af's and DSSS.py's methods are in here
@@ -1096,14 +1253,31 @@ class XSSCharFinder(object):
             raise DropItem('Write_to_file url error: %s' % (str(e)))
         #recode from filename
         host_name = urlparse.urlparse(orig_url).hostname
+
         if 'POST_to' in item:
             post_url = item['POST_to']
         else:
             post_url = ""
-        unfiltered_str = item['unfiltered']
-        vuln_payload = item['xss_payload']
-        vuln_type = item['xss_place']
-        vuln_para = item['xss_param']
+        
+        if 'unfiltered' in item:
+            unfiltered_str = item['unfiltered']
+        else:
+            unfiltered_str= ""
+
+        if 'xss_payload' in item:
+            vuln_payload = item['xss_payload']
+        else:
+            vuln_payload = ""
+
+        if 'xss_place' in item:
+            vuln_type = item['xss_place']
+        else:
+            vuln_type = ""
+
+        if 'xss_param' in item:
+            vuln_para = item['xss_param']
+        else:
+            vuln_para =  ""
         
         if 'sugg_payloads' in item:
             suggest_payload = item['sugg_payloads']
@@ -1115,15 +1289,18 @@ class XSSCharFinder(object):
         else:
             vuln_error = ""
 
-        vuln_line = item['line']
+        if 'line' in item:
+            vuln_line = item['line']
+        else:
+            vuln_line = ""
 
         try:
             if not settings.get('MYSQLDB_ENABLE'):
                 if vuln_line == "info_leak":
                     info_leak_sql = "select count(*) from xxxcrapy where vuln_line = 'info_leak' and resp_url = %s "
                     para = [resp_url]
-                    print info_leak_sql
-                    print para
+                    """ print info_leak_sql
+                    print para """
                     cu.execute(info_leak_sql, para)
                     cx.commit()
                     vuln_line_query = cu.fetchone()[0]
@@ -1228,78 +1405,188 @@ class XSSCharFinder(object):
         url_value=hash(hashlib.new("md5",str(path_value+netloc_value)).hexdigest())%hash_size
 
         return url_value
-
-    def repeat_check(self, orig_url, resp_url, post_para):
-        #print "============="
-        #print orig_url
-        #print "=========="
+        
+        
+    def repeat_check(self, orig_url, resp_url, post_para, post_paras):
         cx = sqlite3.connect("xxxcrapy_repeat.db")
         cu = cx.cursor()
         try:
-            cu.execute("CREATE TABLE url_hash (id INTEGER primary key AUTOINCREMENT,domain VARCHAR(255),pure_url VARCHAR(255),hash VARCHAR(255),query VARCHAR(255) , post_para VARCHAR(255));")
+            cu.execute("CREATE TABLE IF NOT EXISTS url_hash (id INTEGER primary key AUTOINCREMENT,domain VARCHAR(255),pure_url VARCHAR(255),hash VARCHAR(255),query VARCHAR(255) , post_para VARCHAR(255));")
         except Exception,e:
             pass
 
-        if post_para:
+        #resp_url 是 post url（form url）
+        #post_para is single
+        if post_para or post_paras:
             repeat_url = resp_url
         else:
             repeat_url = orig_url
 
         repeat_url_domain = urlparse.urlparse(repeat_url).netloc
-        cu.execute('select * from url_hash where query = "" and domain ="%s"'%(repeat_url_domain))
+        """cu.execute('select * from url_hash where query = "" and domain ="%s"'%(repeat_url_domain))
         if not cu.fetchall():
             #if can't find para is null,assert it no repeatable
-            return False
+            #return False
+            pass """
 
         if "?" in repeat_url:
             repeat_pure_url = repeat_url.split('?')[0]
         else:
             repeat_pure_url = repeat_url
-        cu.execute('select * from url_hash where pure_url = "%s" and post_para = "%s"'%(repeat_pure_url,post_para))
-        if  cu.fetchall():
-            return True
+            no_value_pure_url = repeat_url
 
         #filter static file
         static_file = ['.htm','.js','.css','.rar','.zip','.tar','.7z','.ini','.conf','cnf','.txt']
         for file_extend in static_file:
             if file_extend in repeat_pure_url:
                 return True
-        repeat_url_hash = str(self.urlsimilar(repeat_pure_url))
+
+        #repeat_url_hash = str(self.urlsimilar(repeat_url))
+        #启用的是无参数URL的hash
+
         if urlparse.urlparse(repeat_url).query != "":
             para = urlparse.urlparse(repeat_url).query
             repeat_para =urlparse.parse_qs(para,True).keys()
+            #[['123'], ['444'], ['2']]需要改下
+            repeat_para_value_tmp = urlparse.parse_qs(para,True).values()
+            repeat_para_value = [x[0] for x in repeat_para_value_tmp]
+            repeat_para_all_list = []
+            for x, y in zip(repeat_para, repeat_para_value):
+                repeat_para_all_list.append(x + '=' + y)
+
         else:
             repeat_para = ""
+            repeat_para_all_list = []
+        
+        #挨个替换为空，成就real_pure_url：
+        for all_para in repeat_para_all_list:
+            no_value_pure_url = repeat_url.replace(all_para , all_para.split('=')[0] + '=')
+        #print no_value_pure_url
+        #取还是取无参数的hash，url填没有值的url，也就是repeat_pure_url
+        repeat_url_hash = str(self.urlsimilar(repeat_pure_url))
+
+        #filter post para
+        post_para_list = []
+        if post_paras:
+            if '&' in post_paras:
+                tmp_list = post_paras.split('&')
+                for x in tmp_list:
+                    post_para_list.append(x.split('=')[0])
+            else:
+                post_para_list.append(post_paras.split('=')[0])
+            post_para_list = list(set(post_para_list))
+
+
+        #这里post_para非空都改为list
+        select_post_paras_sql = 'select post_para from url_hash where pure_url = "%s" and post_para != "" ' % (no_value_pure_url)
+        #select_post_paras_sql = 'select post_para from url_hash where hash = "%s" and post_para != "" ' % (repeat_url_hash) 
+
+        cu.execute(select_post_paras_sql)
+        select_post_paras_sql_result = cu.fetchall()
+        if select_post_paras_sql_result:
+            post_paras_sql_result = []
+            #tmp_list = []
+            for rows in select_post_paras_sql_result:
+                try:
+                    #print rows
+                    tmp_list = json.loads(rows[0])
+                    post_paras_sql_result.extend(tmp_list)
+                except Exception,e:
+                    print e
+            post_paras_sql_result = list(set(post_paras_sql_result))
+            #print post_paras_sql_result
+            if post_para in post_paras_sql_result:
+                return True
+            #子集
+            """ print 5555555
+            print select_post_paras_sql
+            print post_paras_sql_result
+            print post_para_list
+            print 66666666666 """
+            if set(post_para_list) <= set(post_paras_sql_result) and post_para_list:
+                return True
+            """ for x in post_para_list:
+                if x not in select_post_paras_sql_result:
+                    #跳出循环，存在陌生参数，继续下面的流程。
+                    break """
+
+
+        #cu.execute('select * from url_hash where pure_url = "%s" and post_para = "%s"'%(repeat_pure_url,post_para))
+        #if  cu.fetchall():
+        #    return True
+
+
+
         cu.execute('select * from url_hash where hash = "%s" and domain ="%s"'%(repeat_url_hash,repeat_url_domain))
-        if cu.fetchone():
+        hash_domain_sql_result = cu.fetchone()
+        if hash_domain_sql_result:
             #can be check again
-            cu.execute('select * from url_hash where pure_url = "%s"'%(repeat_pure_url))# and resp_para
+            cu.execute('select * from url_hash where pure_url = "%s"' % (no_value_pure_url))# and resp_para
             url_hash_item = cu.fetchone()
             if url_hash_item:
-                if post_para:# or orig_para:
-                    cu.execute('select query from url_hash where pure_url = "%s" and query !="" '%(repeat_pure_url))
-                    query = cu.fetchone()
-                    try:#容错
-                        cu.close()
-                        cx.close()
-                    except Exception,e:
-                        print e
-                        pass
-                    if query:
-                        stored_para = json.loads(query[0])
-                        for x in repeat_para:
+                if not post_para and not post_paras:# or orig_para:
+                    cu.execute('select query from url_hash where pure_url = "%s" and query !="" ') % (no_value_pure_url) #%(repeat_pure_url))
+                    query_result = cu.fetchone()
+
+                    if query_result:
+                        stored_para = json.loads(query_result[0])
+                        if set(repeat_para) <= set(stored_para) and repeat_para:
+                            return True
+                        """ for x in repeat_para:
                             if x in stored_para:
                                 continue
                             else:
+                                return True """
                                 #print "Get keyword.........................%s"%(x)
-                                return False
-                        return True
-                else:
-                    return True
-            else:
-                return True
+                                #return False
+                                #pass
+                        #return True
+                #else:
+                    #return True
+            #else:
+            #    return True
+        #else:
+            #pass
+            #return False
+
+        #没有遇到重复匹配，开始扫尾repeat插入判断..........
+        """ if post_para:
+            repeat_url = resp_url
         else:
-            return False
+            repeat_url = orig_url
+
+        #orig_url =  resp_url
+        if "?" in repeat_url:
+            repeat_pure_url = repeat_url.split('?')[0]
+        else:
+            repeat_pure_url = repeat_url
+        repeat_url_hash = str(self.urlsimilar(repeat_pure_url)) """
+        repeat_domain = urlparse.urlparse(repeat_pure_url).netloc
+        if urlparse.urlparse(repeat_url).query != "":
+            query= urlparse.urlparse(repeat_url).query
+            repeat_query_list = list(set(urlparse.parse_qs(query ,True).keys()))
+            repeat_query = json.dumps(repeat_query_list)
+        else:
+            repeat_query = ""
+
+        #url_hash_insert = "INSERT INTO url_hash (domain , pure_url, hash ,query, post_para) VALUES ('%s','%s','%s','%s','%s');"%(repeat_domain,repeat_url ,repeat_url_hash,repeat_query, json.dumps(post_para_list) )
+        url_hash_insert = "INSERT INTO url_hash (domain , pure_url, hash ,query, post_para) VALUES ('%s','%s','%s','%s','%s');"%(repeat_domain, no_value_pure_url ,repeat_url_hash,repeat_query, json.dumps(post_para_list) )
+
+        #if success, insert once
+        try:
+            cu.execute(url_hash_insert)
+        except Exception,e:
+            print e
+            #return False
+        cx.commit()
+        #next line raise return """
+        try:#容错
+            cu.close()
+            cx.close()
+        except Exception,e:
+            print e
+
+        
 
     def sql_manage(self, sql):
         db_config = settings.get('DB_CONFIG')
@@ -1332,3 +1619,4 @@ class XSSCharFinder(object):
         return result
 
 
+ 

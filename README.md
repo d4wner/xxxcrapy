@@ -1,2 +1,2 @@
 # xxxcrapy
-VulnSpider， based on xsscrapy.
+VulnSpider， based on xxxcrapy.

@@ -9,6 +9,8 @@ import re
 URLS_SEEN = BloomFilter(300000, .0001)
 FORMS_SEEN = BloomFilter(300000, .0001)
 HEADERS_SEEN = BloomFilter(300000, .0001)
+FORM_POST_PARA_SEEN = BloomFilter(300000, .0001)
+
 USER_AGENT_LIST = ['Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.131 Safari/537.36',
                    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.131 Safari/537.36',
                    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.75.14 (KHTML, like Gecko) Version/7.0.3 Safari/537.75.14',
@@ -33,7 +35,6 @@ class InjectedDupeFilter(object):
     ''' Filter duplicate payloaded URLs, headers, and forms since all of those have dont_filter = True '''
 
     def process_request(self, request, spider):
-
         meta = request.meta
         if 'xss_place' not in meta:
             return
@@ -73,3 +74,14 @@ class InjectedDupeFilter(object):
             spider.log('Sending payloaded %s header' % h)
             HEADERS_SEEN.add(u_h)
             return
+
+        """ # Injected form dupe handling
+        elif meta['xss_place'] == 'form_post_para':
+            u = meta['POST_to']
+            p = meta['post_paras']
+            u_p = (u, p)
+            if u_p in FORM_POST_PARA_SEEN:
+                raise IgnoreRequest
+            spider.log('Sending post_paras %s to: %s' % (p, u))
+            FORM_POST_PARA_SEEN.add(u_p)
+            return """

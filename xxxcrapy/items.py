@@ -17,6 +17,9 @@ class vuln(Item):
     sugg_payloads = Field()
     line = Field()
     POST_to = Field()
+    post_paras = Field()
+    #form_method = Field()
+    #form_base_url = Field()
 
 
     def __str__(self):

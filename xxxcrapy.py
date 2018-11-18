@@ -37,7 +37,7 @@ __  ____  ____  _____ _ __ __ _ _ __  _   _
                                | |     __/ |
                                |_|    |___/  V1.2
 
-[+]This project based on xsscrapy.
+[+]This project based on xxxcrapy.
     '''
 	
 def main():

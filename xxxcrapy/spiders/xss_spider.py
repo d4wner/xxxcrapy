@@ -4,8 +4,8 @@ from scrapy.contrib.linkextractors import LinkExtractor
 from scrapy.contrib.spiders import CrawlSpider, Rule
 from scrapy.http import FormRequest, Request
 from scrapy.selector import Selector
-from xsscrapy.items import inj_resp
-from xsscrapy.loginform import fill_login_form
+from xxxcrapy.items import inj_resp
+from xxxcrapy.loginform import fill_login_form
 from urlparse import urlparse, parse_qsl, urljoin, urlunparse, urlunsplit
 
 from scrapy.http.cookies import CookieJar
@@ -31,7 +31,7 @@ __author__ = 'Dan McInerney danhmcinerney@gmail.com'
 
 class XSSspider(CrawlSpider):
 #class XSSspider(RedisCrawlSpider, CrawlSpider):
-    name = 'xsscrapy'
+    name = 'xxxcrapy'
     # Scrape 404 pages too
     handle_httpstatus_list = [x for x in xrange(0,600)]
 
@@ -46,17 +46,17 @@ class XSSspider(CrawlSpider):
         self.init_urls = []
         #self.limit_time = ''
         if kwargs.get('input_file'):
-            """ redis_key = 'xsscrapy:start_urls'
+            """ redis_key = 'xxxcrapy:start_urls'
             pool =redis.ConnectionPool(host='192.168.14.129', port=6379, db=0)
             r = redis.Redis(connection_pool=pool)
 
             input_file = open(kwargs.get('input_file'), 'r')
             for line in open(kwargs.get('input_file'), 'r'):
-                r.lpush('xsscrapy.start_urls', line.strip())
+                r.lpush('xxxcrapy.start_urls', line.strip())
             #while True:
             #self.start_urls.append('')
             # process queue as FIFO, change `blpop`to `brpop` to process as LIFO
-            source, self.init_url = r.blpop(["xsscrapy:start_urls"]) """
+            source, self.init_url = r.blpop(["xxxcrapy:start_urls"]) """
             self.input_file = kwargs.get('input_file')
             """ try:
                 print u"Processing: %s" % self.init_url
@@ -68,9 +68,9 @@ class XSSspider(CrawlSpider):
             """  self.allowed_domains = []
             #self.allowed_domains = [hostname] # adding [] around the value seems to allow it to crawl subdomain of value
             #self.allowed_domains = ['dawner.info','localhost']
-            start_urls_len = r.llen('xsscrapy:start_urls')
+            start_urls_len = r.llen('xxxcrapy:start_urls')
             for x in xrange(start_urls_len):
-                x_url = r.lindex("xsscrapy:start_urls",x)
+                x_url = r.lindex("xxxcrapy:start_urls",x)
                 x_hostname = urlparse(x_url).hostname
                 self.allowed_domains.append(x_hostname)
             self.allowed_domains =  list(set(self.allowed_domains)) """
@@ -349,15 +349,16 @@ class XSSspider(CrawlSpider):
         ''' Payload each form input in each input's own request '''
         reqs = []
         vals_urls_meths = []
-        
+        post_forms = []
         payload = self.make_payload()
-
+        
         for form in forms:
             if form.inputs:
                 method = form.method
                 form_url = form.action or form.base_url
                 url = self.url_valid(form_url, orig_url)
                 if url and method:
+                    tmp_post_para = ''
                     for i in form.inputs:
                         if i.name:
                             if type(i).__name__ not in ['InputElement', 'TextareaElement']:
@@ -368,6 +369,10 @@ class XSSspider(CrawlSpider):
                                 nonstrings = ['checkbox', 'radio', 'submit']
                                 if i.type in nonstrings:
                                     continue
+                            if tmp_post_para:
+                                tmp_post_para =  tmp_post_para + '&' + i.name + '='
+                            else:
+                                tmp_post_para = i.name + '='
                             orig_val = form.fields[i.name]
                             if orig_val == None:
                                 orig_val = ''
@@ -379,6 +384,7 @@ class XSSspider(CrawlSpider):
                                 continue
                             xss_param = i.name
                             values = form.form_values()
+                            #payload_paras = 
                             req = FormRequest(url,
                                               formdata=values,
                                               method=method,
@@ -397,9 +403,34 @@ class XSSspider(CrawlSpider):
                             except ValueError as e:
                                 self.log('Error: '+str(e))
                                 continue
-
+                    post_forms.append([tmp_post_para,form.base_url])
+                    #post_forms.append([tmp_post_para,form.method,form.base_url])
         if len(reqs) > 0:
+            if len(post_forms):
+                for x in post_forms:
+                    req = Request(orig_url,
+                                meta={
+                                    #'xss_place':'form_post_para',
+                                    'xss_place':'form',
+                                    'xss_param':'',
+                                    'delim':'',
+                                    'post_paras':x[0],
+                                    #POST_to 是form url
+                                    'POST_to':x[1],
+                                    'orig_url':orig_url
+                                    },
+                                    callback=self.pass_post_paras,
+                                    dont_filter=True
+                                    )
+
+                    reqs.append(req)
             return reqs
+    def pass_post_paras(self,response):
+        item = inj_resp()
+        item['resp'] = response
+        return item
+        
+        
 
     def make_cookie_reqs(self, url, payload, xss_param):
         ''' Generate payloaded cookie header requests '''
